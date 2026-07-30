@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<plugin xmlns="http://www.willuhn.de/schema/jameica-plugin"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin http://www.willuhn.de/schema/jameica-plugin-1.2.xsd"
+        name="kotlin" version="2.4.10" class="de.gnampf.kotlin.Plugin">
+
+  <description>Stellt die Kotlin-Runtime (kotlin-stdlib) als gemeinsame Bibliothek fuer andere Plugins bereit (z.B. Playwright/stealth4j und okhttp). Die Plugin-Version entspricht der enthaltenen kotlin-stdlib-Version.</description>
+  <license>Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0</license>
+
+  <requires jameica="2.6.0+" />
+
+  <classfinder>
+    <include>kotlin\.jar</include>
+    <include>.*\.class</include>
+  </classfinder>
+</plugin>

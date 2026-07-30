@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<project basedir=".." default="sign" name="kotlin" xmlns:resolver="antlib:org.apache.maven.resolver.ant">
+
+  <taskdef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml">
+    <classpath>
+      <fileset dir="lib" includes="maven-resolver-ant-tasks-*uber.jar"/>
+    </classpath>
+  </taskdef>
+
+  <property name="build.dir" value="build" />
+  <property file="${build.dir}/build.properties" />
+
+  <!-- Neueste STABILE kotlin-stdlib-Version ermitteln. Achtung: <release> in maven-metadata
+       zeigt bei Kotlin teils auf Beta-/RC-Versionen — daher aus der Versionsliste die hoechste
+       Nicht-Vorabversion filtern. -->
+  <target name="-fetch-version">
+    <exec executable="bash" outputproperty="kotlin.version" failonerror="true">
+      <arg value="-c" />
+      <arg value="curl -s --max-time 30 https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml | grep -oE '&lt;version&gt;[^&lt;]+&lt;/version&gt;' | sed -E 's#&lt;/?version&gt;##g' | grep -viE 'beta|rc|-m[0-9]|eap|alpha|dev|snapshot' | sort -V | tail -1" />
+    </exec>
+    <fail message="Konnte keine stabile kotlin-stdlib-Version ermitteln"><condition><equals arg1="${kotlin.version}" arg2="" /></condition></fail>
+    <echo message="kotlin-stdlib (stabil): ${kotlin.version}" />
+  </target>
+
+  <target name="-resolve" depends="-fetch-version">
+    <resolver:resolve failOnMissingAttachments="false">
+      <resolver:dependencies>
+        <resolver:dependency groupId="org.jetbrains.kotlin" artifactId="kotlin-stdlib" version="${kotlin.version}" />
+      </resolver:dependencies>
+      <resolver:files refid="kt.files" dir="lib" layout="{artifactId}-{classifier}.{extension}" />
+    </resolver:resolve>
+  </target>
+
+  <target name="init" depends="-resolve">
+    <buildnumber file="${build.dir}/BUILD" />
+    <replaceregexp file="plugin.xml" flags="g"
+        match="(name=&quot;kotlin&quot;\s+version=)&quot;[^&quot;]*&quot;"
+        replace="\1&quot;${kotlin.version}&quot;" />
+    <xmlproperty file="plugin.xml" collapseattributes="true" />
+    <property name="project.release"     value="releases/${plugin.version}-${build.number}" />
+    <property name="project.tmp"         value="${project.release}/tmp" />
+    <property name="project.zipdir"      value="${project.release}/${plugin.name}" />
+    <property name="class.dir"           value="${project.tmp}/bin" />
+    <property name="define.jarfilename"  value="${plugin.name}.jar" />
+    <property name="define.zipfilename"  value="${plugin.name}.zip" />
+    <property name="define.srcfilename"  value="${plugin.name}.src.zip" />
+    <echo message="VERSION: ${plugin.version}  BUILD: ${build.number}  JAVA: ${java.version}" />
+    <path id="compilepath">
+      <pathelement path="${define.compilepath}" />
+      <fileset dir="${lib.dir}"><include name="**/*.jar" /></fileset>
+    </path>
+  </target>
+
+  <target depends="init" name="compile">
+    <mkdir dir="${class.dir}" />
+    <javac debug="true" includeantruntime="false" debuglevel="lines,vars,source"
+           source="${define.java.version}" target="${define.java.version}"
+           encoding="${define.encoding}" destdir="${class.dir}" srcdir="${src.dir}">
+      <classpath refid="compilepath" />
+    </javac>
+  </target>
+
+  <target depends="compile" name="jar">
+    <mkdir dir="${project.zipdir}" />
+    <tstamp />
+    <jar destfile="${project.zipdir}/${define.jarfilename}">
+      <manifest>
+        <attribute name="Implementation-Title" value="${plugin.name}" />
+        <attribute name="Implementation-Version" value="${plugin.version}" />
+        <attribute name="Implementation-Buildnumber" value="${build.number}" />
+      </manifest>
+      <fileset dir="${class.dir}" />
+    </jar>
+  </target>
+
+  <target depends="jar" name="zip">
+    <mkdir dir="${project.zipdir}/lib" />
+    <copy todir="${project.zipdir}/lib">
+      <fileset dir="${lib.dir}">
+        <exclude name="**/*ant*.jar" />
+        <exclude name="**/maven-resolver-ant-tasks*.jar" />
+      </fileset>
+    </copy>
+    <copy file="plugin.xml" todir="${project.zipdir}" />
+    <copy todir="${project.zipdir}"><fileset dir="." includes="LICENSE*" /></copy>
+    <zip destfile="${project.release}/${define.zipfilename}">
+      <fileset dir="${project.release}">
+        <include name="${plugin.name}" />
+        <include name="${plugin.name}/**" />
+      </fileset>
+    </zip>
+  </target>
+
+  <target depends="init" name="src">
+    <mkdir dir="${project.tmp}/${plugin.name}" />
+    <copy todir="${project.tmp}/${plugin.name}">
+      <fileset dir=".">
+        <include name="plugin.xml" />
+        <include name="${src.dir}/**" />
+        <include name="${build.dir}/build.xml" />
+        <include name="${build.dir}/build.properties" />
+      </fileset>
+    </copy>
+    <zip casesensitive="true" zipfile="${project.release}/${define.srcfilename}">
+      <fileset dir="${project.tmp}"><include name="${plugin.name}/**" /></fileset>
+    </zip>
+  </target>
+
+  <target name="sign" depends="zip,src" description="signs the zip for jameica.update">
+    <checksum format="MD5SUM" algorithm="SHA" file="${project.release}/${define.zipfilename}" />
+    <checksum format="MD5SUM" algorithm="SHA" file="${project.release}/${define.srcfilename}" />
+    <loadfile property="storepass" srcFile="${signjar.storepass}" />
+    <java classname="de.willuhn.security.Signature" failonerror="true" dir="${project.release}" fork="true">
+      <classpath refid="compilepath" />
+      <arg line="sign -keystore ${signjar.keystore} -storepass ${storepass} -alias &quot;${signjar.alias}&quot; -keypass ${storepass} -file ${define.zipfilename} -sig ${define.zipfilename}.sha1" />
+    </java>
+  </target>
+
+  <target name="clean">
+    <delete dir="${project.tmp}" />
+    <delete dir="${project.zipdir}" />
+  </target>
+</project>
