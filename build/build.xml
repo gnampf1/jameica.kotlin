@@ -38,6 +38,10 @@
         match="(name=&quot;kotlin&quot;\s+version=)&quot;[^&quot;]*&quot;"
         replace="\1&quot;${kotlin.version}&quot;" />
     <xmlproperty file="plugin.xml" collapseattributes="true" />
+    <!-- Download-URL (versionsabhaengig) und Homepage (GitHub) in plugin.xml eintragen. -->
+    <replaceregexp file="plugin.xml" flags="g"
+        match="&lt;url&gt;[^&lt;]*&lt;/url&gt;"
+        replace="&lt;url&gt;${download.baseurl}/${plugin.name}/${plugin.version}/${plugin.name}.zip&lt;/url&gt;" />
     <property name="project.release"     value="releases/${plugin.version}-${build.number}" />
     <property name="project.tmp"         value="${project.release}/tmp" />
     <property name="project.zipdir"      value="${project.release}/${plugin.name}" />
